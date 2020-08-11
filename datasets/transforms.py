@@ -22,11 +22,24 @@ class Compose(object):
 class LoadAudio(object):
     """Loads an audio into a numpy array."""
 
-    def __init__(self, sample_rate=16000):
+    def __init__(self, sample_rate=16000, mhz=32767):
         self.sample_rate = sample_rate
+        self.mhz = 32767
 
     def __call__(self, data):
-        samples, sample_rate = librosa.load(data['fname'], self.sample_rate)
+        if data['fname'].split('.')[-1] == 'pcm':
+            samples = np.memmap(data['fname'], dtype='h', mode='r')
+            samples = samples.astype('float32') / self.mhz
+            
+            sample_rate = self.sample_rate
+        else:
+            import soundfile as sf
+
+            with open(data['fname'], 'rb') as f:
+                samples, sample_rate = sf.read(f)
+            #samples, sample_rate = librosa.load(data['fname'])
+            if sample_rate != self.sample_rate:
+                samples, sample_rate = librosa.resample(samples, sample_rate, self.sample_rate), self.sample_rate
         # audio_duration = len(samples) * 1.0 / sample_rate
 
         data['samples'] = samples
@@ -44,7 +57,7 @@ class LoadMagSpectrogram(object):
 
     def __call__(self, data):
         # F,T
-        features = np.load(data['fname'].replace('.wav', '.npy'))
+        features = np.load(data['fname'].replace('.pcm', '.pcm.npy'))
 
         data = {
             'target': data['text'],
@@ -54,7 +67,7 @@ class LoadMagSpectrogram(object):
             'n_fft': self.n_fft,
             'sample_rate': self.sample_rate,
         }
-
+        data['target'] = np.array(data['target'])
         return data
 
 
@@ -238,7 +251,7 @@ class ComputeMagSpectrogram(object):
             'n_fft': self.n_fft,
             'sample_rate': sample_rate
         }
-
+        data['target'] = np.array(data['target'])
         return data
 
 

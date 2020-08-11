@@ -27,8 +27,10 @@ from misc.optimizers import AdamW, Novograd
 from misc.lr_policies import noam_v1, cosine_annealing
 from decoder import GreedyDecoder
 
+torch.cuda.set_device(2)
+
 parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument("--dataset", choices=['librispeech', 'mbspeech', 'bolorspeech', 'kazakh20h'],
+parser.add_argument("--dataset", choices=['librispeech', 'mbspeech', 'bolorspeech', 'kazakh20h', 'aihub'],
                     default='bolorspeech', help='dataset name')
 parser.add_argument("--comment", type=str, default='', help='comment in tensorboard title')
 parser.add_argument("--logdir", type=str, default='logdir', help='log dir for tensorboard logs and checkpoints')
@@ -126,6 +128,26 @@ elif args.dataset == 'kazakh20h':
     from datasets.kazakh20h_speech import Kazakh20hSpeech as SpeechDataset, vocab
 
     max_duration = 16.7
+    train_dataset = ConcatDataset([
+        SpeechDataset(name='train', max_duration=max_duration, transform=train_transform),
+        ColoredNoiseDataset(size=100, transform=train_transform)
+        # BackgroundSounds(size=100, transform=train_transform)
+    ])
+    valid_dataset = SpeechDataset(name='test', transform=valid_transform)
+elif args.dataset == 'aihub':
+    from datasets.aihub_speech import AihubSpeech as SpeechDataset, vocab
+
+    max_duration = None
+    train_dataset = ConcatDataset([
+        SpeechDataset(name='train', max_duration=max_duration, transform=train_transform),
+        ColoredNoiseDataset(size=100, transform=train_transform)
+        # BackgroundSounds(size=100, transform=train_transform)
+    ])
+    valid_dataset = SpeechDataset(name='test', transform=valid_transform)
+elif args.dataset == 'uaihub':
+    from datasets.uaihub_speech import AihubSpeech as SpeechDataset, vocab
+
+    max_duration = None
     train_dataset = ConcatDataset([
         SpeechDataset(name='train', max_duration=max_duration, transform=train_transform),
         ColoredNoiseDataset(size=100, transform=train_transform)
@@ -255,6 +277,11 @@ def lr_decay(step, epoch):
         for param_group in optimizer.param_groups:
             param_group['lr'] = new_lr
 
+def set_lr(lr):
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+        
+#set_lr(1e-4)
 
 def train(epoch, phase='train'):
     global global_step
@@ -313,7 +340,7 @@ def train(epoch, phase='train'):
             targets_1d = targets.view(-1)
             targets_1d = targets_1d[targets_1d.nonzero().squeeze()]
             # warpctc wants targets, inputs_length, targets_length on CPU -> don't need to convert to CUDA
-            loss = criterion(outputs, targets_1d, inputs_length, targets_length)
+            loss = criterion(outputs.cpu(), targets_1d.cpu(), inputs_length.cpu(), targets_length.cpu())
         else:
             # nn.CTCLoss wants log softmax with TxBxC
             loss = criterion(outputs.log_softmax(dim=2), targets.cuda(), inputs_length.cuda(), targets_length.cuda())
