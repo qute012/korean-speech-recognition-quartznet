@@ -1,7 +1,7 @@
 # quartznet-ko
 Jasper 양자화 모델인 Quartznet에 Ai-Hub를 학습한 한국어 음성인식입니다.
 
-본 프로젝트는 https://github.com/tugstugi/mongolian-speech-recognition에서 확장되었습니다.
+본 프로젝트는 https://github.com/tugstugi/mongolian-speech-recognition 에서 확장되었습니다.
 
 # Preparation
 /datasets/meta/aihub 경로에 char2idx(dict), idx2char(list)를 피클로 저장
